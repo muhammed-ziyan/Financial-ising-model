@@ -1,0 +1,15 @@
+case_name: "C"
+lattice:
+  m: 5
+model:
+  lambda_: 0.15
+  b_max: 0.09
+  c_max: 0.3
+  delta: 1
+  beta: 1.0
+  eta: 3.0
+  noise_scale: 0.3
+simulation:
+  burn_in: 2000
+  production: 5000
+  seed: 42

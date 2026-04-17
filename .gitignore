@@ -1,0 +1,40 @@
+# AI assistant and local tool state
+.claude/
+.codex/
+.cursor/
+.aider*
+CLAUDE.md
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Generated project outputs
+data/outputs/
+figures/
+*.npz
+
+# Local/reference documents not needed for source distribution
+*.pdf
+*_project_plan.md
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
