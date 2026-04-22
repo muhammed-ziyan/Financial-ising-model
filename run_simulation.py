@@ -11,7 +11,7 @@ import numpy as np
 from src.config_loader import load_config
 from src.model import IsingMarketModel
 from src.observables import normalize_returns, compute_volatility, save_results
-from src.analysis_tail import tail_ccdf, hill_estimator, fit_tail_ols
+from src.analysis_tail import tail_ccdf, hill_estimator, hill_adaptive, fit_tail_ols
 from src.analysis_memory import acf, rs_analysis, dfa
 from src.analysis_multifractal import mfdfa
 from src import plotting as plt_mod
@@ -56,46 +56,52 @@ def main():
 
     pos_tail = g[g > 0]
     neg_tail = np.abs(g[g < 0])
-    k_pos = max(10, len(pos_tail) // 10)
-    k_neg = max(10, len(neg_tail) // 10)
-    alpha_pos = hill_estimator(pos_tail, k_pos)
-    alpha_neg = hill_estimator(neg_tail, k_neg)
-    print(f"  Hill estimator: beta+ = {alpha_pos:.4f} (k={k_pos})")
-    print(f"  Hill estimator: beta- = {alpha_neg:.4f} (k={k_neg})")
 
-    # OLS cross-check on CCDF tail
+    # OLS regression on CCDF tail (primary — matches paper's method)
+    # Fit in the tail region: large |g| where power-law behavior holds
+    ols_pos = ols_neg = np.nan
     if len(pos_x) > 20:
         x_min = np.percentile(pos_tail, 80)
         x_max = pos_tail.max()
         ols_pos, _ = fit_tail_ols(pos_x, pos_ccdf, x_min, x_max)
-        print(f"  OLS tail fit: beta+ = {ols_pos:.4f}")
+        print(f"  OLS tail fit:  beta+ = {ols_pos:.4f}")
     if len(neg_x) > 20:
         x_min = np.percentile(neg_tail, 80)
         x_max = neg_tail.max()
         ols_neg, _ = fit_tail_ols(neg_x, neg_ccdf, x_min, x_max)
-        print(f"  OLS tail fit: beta- = {ols_neg:.4f}")
+        print(f"  OLS tail fit:  beta- = {ols_neg:.4f}")
+
+    # Hill estimator (secondary cross-check)
+    alpha_pos, k_pos = hill_adaptive(pos_tail)
+    alpha_neg, k_neg = hill_adaptive(neg_tail)
+    print(f"  Hill adaptive: beta+ = {alpha_pos:.4f} (k={k_pos})")
+    print(f"  Hill adaptive: beta- = {alpha_neg:.4f} (k={k_neg})")
+
+    # Use OLS as primary if available
+    alpha_pos = ols_pos if np.isfinite(ols_pos) else alpha_pos
+    alpha_neg = ols_neg if np.isfinite(ols_neg) else alpha_neg
 
     print("\n--- Volatility Clustering ---")
     max_lag = 100
-    acf_r = acf(returns, max_lag)
-    acf_v = acf(compute_volatility(returns), max_lag)
+    acf_r = acf(g, max_lag)
+    acf_v = acf(np.abs(g), max_lag)
     print(f"  ACF returns at lag 1: {acf_r[1]:.4f}, lag 10: {acf_r[10]:.4f}")
     print(f"  ACF |returns| at lag 1: {acf_v[1]:.4f}, lag 10: {acf_v[10]:.4f}")
 
     print("\n--- R/S Hurst Analysis ---")
-    n_rs, rs_vals, H_rs = rs_analysis(returns)
+    n_rs, rs_vals, H_rs = rs_analysis(g)
     print(f"  Hurst exponent (R/S): H = {H_rs:.4f}")
 
     print("\n--- DFA Analysis ---")
     dfa_results = {}
     for order in [1, 2, 3]:
-        n_d, F_d, alpha_d = dfa(returns, order=order)
+        n_d, F_d, alpha_d = dfa(g, order=order)
         dfa_results[order] = (n_d, F_d, alpha_d)
         print(f"  DFA{order} exponent: alpha = {alpha_d:.4f}")
 
     print("\n--- Multifractal DFA ---")
     q_vals = np.concatenate([np.arange(-5, 0, 0.5), np.arange(0.5, 5.5, 0.5)])
-    mf = mfdfa(returns, q_vals, order=1)
+    mf = mfdfa(g, q_vals, order=1)
     valid_hq = np.isfinite(mf['hq'])
     if np.any(valid_hq):
         print(f"  h(q=-5) = {mf['hq'][0]:.4f}, h(q=2) = {mf['hq'][np.argmin(np.abs(q_vals - 2))]:.4f}, "

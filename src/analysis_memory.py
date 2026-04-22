@@ -23,7 +23,8 @@ def rs_analysis(x: np.ndarray, n_values: np.ndarray = None):
     """
     T = len(x)
     if n_values is None:
-        n_values = np.unique(np.geomspace(10, T // 4, num=30).astype(int))
+        # Minimum box size n=50 per Weron (2002)
+        n_values = np.unique(np.geomspace(50, T // 4, num=30).astype(int))
 
     rs_values = np.empty(len(n_values))
     for idx, n in enumerate(n_values):
@@ -64,8 +65,9 @@ def dfa(x: np.ndarray, order: int = 1, n_values: np.ndarray = None):
     profile = np.cumsum(x - np.mean(x))
 
     if n_values is None:
-        n_values = np.unique(np.geomspace(10, T // 4, num=30).astype(int))
-        n_values = n_values[n_values >= order + 2]
+        # Minimum segment size: enough points for robust polynomial fit
+        n_min = max(16, 4 * (order + 1))
+        n_values = np.unique(np.geomspace(n_min, T // 4, num=30).astype(int))
 
     F_values = np.empty(len(n_values))
     for idx, n in enumerate(n_values):
@@ -73,17 +75,9 @@ def dfa(x: np.ndarray, order: int = 1, n_values: np.ndarray = None):
         num_seg = T // n
         variances = []
 
-        # Forward segments
+        # Forward non-overlapping segments only (standard DFA)
         for s in range(num_seg):
             segment = profile[s * n: (s + 1) * n]
-            t_local = np.arange(n, dtype=float)
-            coeffs = np.polyfit(t_local, segment, order)
-            trend = np.polyval(coeffs, t_local)
-            variances.append(np.mean((segment - trend) ** 2))
-
-        # Backward segments (use remaining data from the end)
-        for s in range(num_seg):
-            segment = profile[T - (s + 1) * n: T - s * n]
             t_local = np.arange(n, dtype=float)
             coeffs = np.polyfit(t_local, segment, order)
             trend = np.polyval(coeffs, t_local)

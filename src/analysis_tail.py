@@ -60,6 +60,37 @@ def hill_plot(data: np.ndarray, k_range: np.ndarray = None):
     return k_range, alphas
 
 
+def hill_adaptive(data: np.ndarray):
+    """Adaptive Hill estimator using plateau detection.
+
+    Scans k values in the tail region (top 1%-10% of data),
+    finds the most stable region, and returns the median.
+
+    Returns (alpha, k_optimal).
+    """
+    n = len(data)
+    # Search only in the genuine tail: 1% to 10% of data
+    k_min = max(10, int(n * 0.01))
+    k_max = max(k_min + 20, int(n * 0.10))
+    k_range = np.arange(k_min, k_max)
+
+    alphas = np.array([hill_estimator(data, int(k)) for k in k_range])
+
+    # Sliding window variance to find plateau (most stable region)
+    window = max(5, len(k_range) // 5)
+    best_var = np.inf
+    best_start = 0
+    for start in range(len(alphas) - window):
+        local_var = np.var(alphas[start:start + window])
+        if local_var < best_var:
+            best_var = local_var
+            best_start = start
+
+    plateau = alphas[best_start:best_start + window]
+    k_opt = k_range[best_start + window // 2]
+    return np.median(plateau), int(k_opt)
+
+
 def fit_tail_ols(x: np.ndarray, ccdf: np.ndarray,
                  x_min: float, x_max: float):
     """OLS fit of log(CCDF) = -alpha * log(x) + const in [x_min, x_max].

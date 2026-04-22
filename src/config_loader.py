@@ -18,6 +18,7 @@ class SimConfig:
     burn_in: int
     production: int
     seed: int
+    sweeps_per_step: int = 1
 
 
 def load_config(path: str) -> SimConfig:
@@ -38,4 +39,5 @@ def load_config(path: str) -> SimConfig:
         burn_in=raw['simulation']['burn_in'],
         production=raw['simulation']['production'],
         seed=raw['simulation']['seed'],
+        sweeps_per_step=raw['simulation'].get('sweeps_per_step', 1),
     )

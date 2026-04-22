@@ -4,6 +4,46 @@ import numpy as np
 from .lattice import build_neighbor_table
 from .config_loader import SimConfig
 
+try:
+    from numba import njit
+    _HAS_NUMBA = True
+except ImportError:
+    _HAS_NUMBA = False
+
+
+def _sweep_python(spins, neighbors, J_coupling, c, G_t, noise,
+                  beta, order, u):
+    """Random sequential Monte Carlo sweep (pure Python fallback)."""
+    N = len(spins)
+    for idx in range(N):
+        i = order[idx]
+        nn_sum = 0.0
+        for d in range(6):
+            nn_sum += spins[neighbors[i, d]]
+        h_i = J_coupling[i] * nn_sum + c[i] * G_t + noise[i]
+        prob_up = 1.0 / (1.0 + np.exp(-2.0 * beta * h_i))
+        spins[i] = 1 if u[idx] < prob_up else -1
+
+
+if _HAS_NUMBA:
+    @njit(cache=True)
+    def _sweep_numba(spins, neighbors, J_coupling, c, G_t, noise,
+                     beta, order, u):
+        """Random sequential Monte Carlo sweep (numba accelerated)."""
+        N = len(spins)
+        for idx in range(N):
+            i = order[idx]
+            nn_sum = 0.0
+            for d in range(6):
+                nn_sum += spins[neighbors[i, d]]
+            h_i = J_coupling[i] * nn_sum + c[i] * G_t + noise[i]
+            prob_up = 1.0 / (1.0 + np.exp(-2.0 * beta * h_i))
+            spins[i] = 1 if u[idx] < prob_up else -1
+
+    _sweep = _sweep_numba
+else:
+    _sweep = _sweep_python
+
 
 class IsingMarketModel:
     """Self-organizing 3D Ising model of financial markets.
@@ -51,18 +91,17 @@ class IsingMarketModel:
             + cfg.delta * self.r_prev * self.G_prev
         )
 
-        # 3. Local field: h_i = J_i * sum_j S_j(neighbors) + c_i * G(t) + eps_i
-        neighbor_spins = self.spins[self.neighbors]  # (N, 6)
-        sum_neighbor_spins = np.sum(neighbor_spins, axis=1).astype(np.float64)  # (N,)
-        interaction = self.J_coupling * sum_neighbor_spins
-        news_field = self.c * G_t
-        private_noise = self.rng.normal(0, cfg.noise_scale, size=self.N)
-        h = interaction + news_field + private_noise
-
-        # 4. Heat-bath synchronous update
-        prob_up = 1.0 / (1.0 + np.exp(-2.0 * cfg.beta * h))
-        u = self.rng.random(self.N)
-        self.spins = np.where(u < prob_up, np.int8(1), np.int8(-1))
+        # 3-4. Random sequential (Glauber) Monte Carlo sweeps
+        #       Multiple sweeps per timestep allow decorrelation
+        #       within a single "market day"
+        spins_f = self.spins.astype(np.int64)
+        for _ in range(cfg.sweeps_per_step):
+            sweep_order = self.rng.permutation(self.N).astype(np.int32)
+            private_noise = self.rng.normal(0, cfg.noise_scale, size=self.N)
+            u = self.rng.random(self.N)
+            _sweep(spins_f, self.neighbors, self.J_coupling, self.c,
+                   G_t, private_noise, cfg.beta, sweep_order, u)
+        self.spins = spins_f.astype(np.int8)
 
         # 5. Magnetization and return
         magnetization = np.mean(self.spins.astype(np.float64))
