@@ -1,22 +1,53 @@
-"""3D cubic lattice with periodic boundary conditions."""
+"""3D cubic lattice with periodic boundary conditions.
+
+The lattice is an m × m × m cubic grid where each site has exactly 6
+nearest neighbors (±x, ±y, ±z).  Periodic boundary conditions are
+applied so the lattice wraps around in all three dimensions, removing
+edge effects.
+
+The flat site index follows row-major order: index = x*m² + y*m + z.
+"""
 
 import numpy as np
 
 
 def site_index(x: int, y: int, z: int, m: int) -> int:
-    """Convert 3D coordinates to flat index."""
+    """Convert 3D lattice coordinates to a flat (1D) index.
+
+    Parameters
+    ----------
+    x, y, z : int
+        Lattice coordinates in [0, m).
+    m : int
+        Linear lattice size.
+
+    Returns
+    -------
+    int
+        Flat index in [0, m³).
+    """
     return x * m * m + y * m + z
 
 
 def build_neighbor_table(m: int) -> np.ndarray:
-    """
-    Build neighbor lookup table for m x m x m cubic lattice
+    """Build the nearest-neighbor lookup table for an m × m × m cubic lattice
     with periodic boundary conditions.
+
+    Each site has 6 neighbors corresponding to ±1 steps along the three
+    Cartesian axes.  Periodic boundaries are enforced with modular arithmetic
+    so that, e.g., site (m-1, y, z) wraps around to (0, y, z) in the +x
+    direction.
+
+    Parameters
+    ----------
+    m : int
+        Linear lattice size.  The total number of sites is N = m³.
 
     Returns
     -------
     neighbors : ndarray of shape (N, 6), dtype int32
-        Column order: +x, -x, +y, -y, +z, -z
+        ``neighbors[i, d]`` is the flat index of site *i*'s neighbor in
+        direction *d*.  Column order: +x, -x, +y, -y, +z, -z.
     """
     N = m ** 3
     neighbors = np.empty((N, 6), dtype=np.int32)
@@ -34,12 +65,25 @@ def build_neighbor_table(m: int) -> np.ndarray:
 
 
 def verify_neighbor_table(neighbors: np.ndarray, m: int) -> None:
-    """Verify correctness of neighbor table.
+    """Assert correctness of a pre-built neighbor table.
 
-    Checks:
-    - Every site has exactly 6 neighbors
-    - No self-loops
-    - Symmetry: +x neighbor's -x neighbor is original site (etc.)
+    Performs three sanity checks:
+    * Shape — every site has exactly 6 neighbors.
+    * No self-loops — no site is its own neighbor.
+    * Symmetry — the +dir neighbor's -dir neighbor equals the original site,
+      confirming that the periodic wrapping is mutually consistent.
+
+    Parameters
+    ----------
+    neighbors : ndarray of shape (N, 6), dtype int32
+        Neighbor table as returned by :func:`build_neighbor_table`.
+    m : int
+        Linear lattice size used to construct the table.
+
+    Raises
+    ------
+    AssertionError
+        If any check fails.
     """
     N = m ** 3
     assert neighbors.shape == (N, 6), f"Expected shape ({N}, 6), got {neighbors.shape}"

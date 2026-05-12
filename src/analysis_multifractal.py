@@ -1,22 +1,63 @@
-"""Multifractal Detrended Fluctuation Analysis (MF-DFA)."""
+"""Multifractal Detrended Fluctuation Analysis (MF-DFA).
+
+MF-DFA generalises standard DFA by computing a family of fluctuation
+functions F_q(n) parameterised by the moment order *q*.  The generalised
+Hurst exponent h(q) is the slope of log F_q(n) vs log(n) for each q.
+
+Key outputs
+-----------
+* ``hq``      — generalized Hurst exponents h(q): h(2) ≈ DFA2 exponent;
+  non-constant h(q) signals multifractality (paper Fig. 6, Table IV).
+* ``tauq``    — Rényi scaling exponent τ(q) = q·h(q) − 1.
+* ``alpha``   — singularity strength α = dτ/dq (Legendre spectrum).
+* ``f_alpha`` — multifractal spectrum f(α) = q·α − τ(q); a wide
+  parabola indicates richer multifractality.
+* ``Fq``      — raw fluctuation functions, shape (n_q, n_scales).
+
+Reference: Kantelhardt et al., *Physica A* 316, 87–114 (2002).
+"""
 
 import numpy as np
 
 
 def mfdfa(x: np.ndarray, q_values: np.ndarray, order: int = 1,
           n_values: np.ndarray = None) -> dict:
-    """Multifractal DFA.
+    """Compute Multifractal DFA for a 1D time series.
+
+    Both forward and backward non-overlapping segments are used when
+    computing the segment variances, which improves the estimate at each
+    scale (standard MF-DFA practice).
 
     Parameters
     ----------
-    x : 1D time series
-    q_values : array of q values (should not include 0)
-    order : polynomial detrending order
-    n_values : segment sizes
+    x : np.ndarray
+        1D stationary time series (e.g. normalised returns).
+    q_values : np.ndarray
+        Moment orders.  Should not contain exactly 0 (the q=0 case uses
+        the geometric-mean formula and is handled separately if present).
+    order : int, optional
+        Polynomial detrending order.  Default is 1 (linear detrending).
+    n_values : np.ndarray, optional
+        Segment sizes.  If *None*, 30 geometrically spaced values from
+        10 to T//4 are used (filtered to ≥ ``order + 2``).
 
     Returns
     -------
-    dict with keys: n_values, q_values, Fq, hq, tauq, alpha, f_alpha
+    dict with keys:
+        ``n_values`` : np.ndarray
+            Segment sizes used.
+        ``q_values`` : np.ndarray
+            Moment orders (as passed in).
+        ``Fq`` : np.ndarray, shape (n_q, n_scales)
+            Generalised fluctuation function F_q(n).
+        ``hq`` : np.ndarray, shape (n_q,)
+            Generalised Hurst exponents h(q).
+        ``tauq`` : np.ndarray, shape (n_q,)
+            Rényi scaling exponent τ(q) = q·h(q) − 1.
+        ``alpha`` : np.ndarray, shape (n_q,)
+            Singularity strength α = dτ/dq (numerical gradient).
+        ``f_alpha`` : np.ndarray, shape (n_q,)
+            Multifractal spectrum f(α) = q·α − τ(q).
     """
     T = len(x)
     profile = np.cumsum(x - np.mean(x))

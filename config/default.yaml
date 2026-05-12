@@ -1,0 +1,12 @@
+model:
+  c_max: 0.6364152203569706
+  delta: 1
+  beta: 1.3783000121387377
+  eta: 3.224941146168947
+  noise_scale: 1.332804543716413
+simulation:
+  burn_in: 3000
+  production: 8000
+  seed: 42
+  sweeps_per_step: 1
+  n_seeds: 5

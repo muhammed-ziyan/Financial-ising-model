@@ -1,40 +1,77 @@
-# AI assistant and local tool state
+# ── AI assistant / IDE local state ──────────────────────────────────────────
 .claude/
 .codex/
 .cursor/
 .aider*
 CLAUDE.md
+AGENTS.md
 
-# Python caches and test artifacts
+# ── Python build artefacts ───────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyd
+*.pyo
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Test and type-checker caches ─────────────────────────────────────────────
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 htmlcov/
+*.lcov
 
-# Virtual environments and local configuration
+# ── Virtual environments ──────────────────────────────────────────────────────
 .venv/
 venv/
 env/
+ENV/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
 .env
 .env.*
+*.pem
+*.key
 
-# Generated project outputs
+# ── Generated simulation outputs ──────────────────────────────────────────────
+# Remove these lines if you want to commit specific output artefacts.
 data/outputs/
 figures/
 *.npz
 
-# Local/reference documents not needed for source distribution
-*.pdf
+# ── Internal planning / AI-generated reports not for distribution ─────────────
 *_project_plan.md
+OPTIMIZATION_REPORT.md
 
-# OS and editor noise
+# ── Reference PDFs (large binary files) ──────────────────────────────────────
+*.pdf
+
+# ── OS noise ──────────────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
-*.swp
-*.swo
+ehthumbs.db
+desktop.ini
+
+# ── Editor / IDE project files ────────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# ── Jupyter Notebooks ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ── Numba JIT cache (binary, platform-specific) ───────────────────────────────
+*.nbi
+*.nbc

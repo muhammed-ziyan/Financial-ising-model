@@ -1,4 +1,22 @@
-"""Centralized figure generation for the Ising market model."""
+"""Centralised figure generation for the Ising market model.
+
+Each public function in this module creates one Matplotlib figure and
+optionally saves it to disk (when ``savepath`` is provided).  All
+functions return the :class:`matplotlib.figure.Figure` object so the
+caller can further customise or display it inline in a notebook.
+
+Naming convention
+-----------------
+``plot_*`` functions accept the pre-computed analysis arrays (from
+``src.analysis_*``) together with ``case_name`` (string label for the
+title) and an optional ``savepath``.
+
+Saving behaviour
+----------------
+If ``savepath`` is given the figure is saved at 150 dpi with
+``bbox_inches='tight'`` and the axes are closed to free memory.  Parent
+directories are created automatically.
+"""
 
 import os
 import numpy as np
@@ -7,6 +25,7 @@ from scipy.stats import norm
 
 
 def _savefig(fig, savepath):
+    """Save *fig* to *savepath* (creating parent dirs) and close it."""
     if savepath:
         os.makedirs(os.path.dirname(savepath), exist_ok=True)
         fig.savefig(savepath, dpi=150, bbox_inches='tight')
@@ -14,7 +33,17 @@ def _savefig(fig, savepath):
 
 
 def plot_return_series(returns, case_name, savepath=None):
-    """Time series of returns."""
+    """Plot the raw return time series r(t).
+
+    Parameters
+    ----------
+    returns : np.ndarray
+        1D array of raw (un-normalized) returns.
+    case_name : str
+        Case label used in the plot title (e.g. ``"A"``).
+    savepath : str, optional
+        File path to save the figure.  If *None* the figure is not saved.
+    """
     fig, ax = plt.subplots(figsize=(10, 3))
     ax.plot(returns, linewidth=0.5)
     ax.set_xlabel('Time step')
@@ -26,7 +55,17 @@ def plot_return_series(returns, case_name, savepath=None):
 
 
 def plot_price_series(price, case_name, savepath=None):
-    """Price evolution."""
+    """Plot the reconstructed log-price time series p(t) = exp(cumsum r).
+
+    Parameters
+    ----------
+    price : np.ndarray
+        1D array of price values.
+    case_name : str
+        Case label used in the plot title.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(10, 3))
     ax.plot(price, linewidth=0.8)
     ax.set_xlabel('Time step')
@@ -37,7 +76,19 @@ def plot_price_series(price, case_name, savepath=None):
 
 
 def plot_return_histogram(returns_norm, case_name, savepath=None):
-    """Histogram of normalized returns overlaid with Gaussian PDF."""
+    """Plot a log-scale histogram of normalized returns with a Gaussian overlay.
+
+    Demonstrates the fat-tailed (leptokurtic) return distribution.
+
+    Parameters
+    ----------
+    returns_norm : np.ndarray
+        Normalized return series g (paper Eq. 4).
+    case_name : str
+        Case label used in the plot title.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.hist(returns_norm, bins=80, density=True, alpha=0.7, label='Model')
     x_range = np.linspace(-6, 6, 300)
@@ -53,7 +104,24 @@ def plot_return_histogram(returns_norm, case_name, savepath=None):
 
 def plot_ccdf(x, ccdf, case_name, tail_label='positive',
               fit_alpha=None, savepath=None):
-    """Log-log CCDF plot with optional power-law fit line."""
+    """Log-log CCDF scatter with an optional power-law reference line.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Sorted tail values (output of :func:`src.analysis_tail.tail_ccdf`).
+    ccdf : np.ndarray
+        Empirical complementary CDF values.
+    case_name : str
+        Case label used in the plot title.
+    tail_label : str, optional
+        ``"positive"`` or ``"negative"``; used in axis and title labels.
+    fit_alpha : float, optional
+        Power-law exponent β for the reference slope line.  If *None* or
+        not finite, no line is drawn.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.plot(x, ccdf, '.', markersize=2, label='Empirical CCDF')
     if fit_alpha is not None and np.isfinite(fit_alpha):
@@ -74,7 +142,24 @@ def plot_ccdf(x, ccdf, case_name, tail_label='positive',
 
 def plot_acf_comparison(acf_returns, acf_volatility, max_lag, case_name,
                         savepath=None):
-    """ACF of returns vs ACF of |returns|."""
+    """Plot ACF of returns and ACF of |returns| on the same axes.
+
+    The contrast between a quickly decaying return ACF and a slowly
+    decaying |return| ACF is the signature of volatility clustering.
+
+    Parameters
+    ----------
+    acf_returns : np.ndarray
+        ACF of the normalized return series.
+    acf_volatility : np.ndarray
+        ACF of the absolute normalized returns.
+    max_lag : int
+        Maximum lag displayed.
+    case_name : str
+        Case label used in the plot title.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(8, 4))
     lags = np.arange(max_lag + 1)
     ax.plot(lags, acf_returns, label='ACF of returns', alpha=0.8)
@@ -89,7 +174,21 @@ def plot_acf_comparison(acf_returns, acf_volatility, max_lag, case_name,
 
 
 def plot_rs_hurst(n_values, rs_values, H, case_name, savepath=None):
-    """Log-log R/S plot with fit line."""
+    """Log-log R/S scatter plot with the OLS fit line.
+
+    Parameters
+    ----------
+    n_values : np.ndarray
+        Block sizes (from :func:`src.analysis_memory.rs_analysis`).
+    rs_values : np.ndarray
+        Mean R/S for each block size.
+    H : float
+        Estimated Hurst exponent (displayed in the legend).
+    case_name : str
+        Case label used in the plot title.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     valid = (rs_values > 0) & ~np.isnan(rs_values)
     log_n = np.log10(n_values[valid].astype(float))
@@ -108,7 +207,23 @@ def plot_rs_hurst(n_values, rs_values, H, case_name, savepath=None):
 
 
 def plot_dfa(n_values, F_values, alpha, order, case_name, savepath=None):
-    """Log-log DFA fluctuation function plot."""
+    """Log-log DFA fluctuation function F(n) with the OLS fit line.
+
+    Parameters
+    ----------
+    n_values : np.ndarray
+        Segment lengths (from :func:`src.analysis_memory.dfa`).
+    F_values : np.ndarray
+        Fluctuation function F(n).
+    alpha : float
+        DFA scaling exponent.
+    order : int
+        Polynomial detrending order (1, 2, or 3) — shown in the legend.
+    case_name : str
+        Case label used in the plot title.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     valid = F_values > 0
     log_n = np.log10(n_values[valid].astype(float))
@@ -126,7 +241,23 @@ def plot_dfa(n_values, F_values, alpha, order, case_name, savepath=None):
 
 
 def plot_multifractal_hq(q_values, hq, case_name, savepath=None):
-    """h(q) vs q plot."""
+    """Plot the generalised Hurst exponent h(q) vs q.
+
+    A non-constant, monotonically decreasing h(q) curve signals genuine
+    multifractality.  The dashed grey line at h = 0.5 marks the
+    uncorrelated (Brownian) reference.
+
+    Parameters
+    ----------
+    q_values : np.ndarray
+        Moment orders.
+    hq : np.ndarray
+        Generalised Hurst exponents h(q).
+    case_name : str
+        Case label.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     valid = np.isfinite(hq)
     ax.plot(q_values[valid], hq[valid], 'o-', markersize=4)
@@ -139,7 +270,22 @@ def plot_multifractal_hq(q_values, hq, case_name, savepath=None):
 
 
 def plot_multifractal_tauq(q_values, tauq, case_name, savepath=None):
-    """tau(q) vs q plot."""
+    """Plot the Rényi scaling exponent τ(q) vs q.
+
+    τ(q) = q·h(q) − 1.  A linear τ(q) indicates monofractality;
+    curvature is the fingerprint of multifractal behaviour.
+
+    Parameters
+    ----------
+    q_values : np.ndarray
+        Moment orders.
+    tauq : np.ndarray
+        Rényi exponents τ(q).
+    case_name : str
+        Case label.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     valid = np.isfinite(tauq)
     ax.plot(q_values[valid], tauq[valid], 'o-', markersize=4)
@@ -151,7 +297,23 @@ def plot_multifractal_tauq(q_values, tauq, case_name, savepath=None):
 
 
 def plot_multifractal_spectrum(alpha_mf, f_alpha, case_name, savepath=None):
-    """f(alpha) vs alpha multifractal spectrum."""
+    """Plot the multifractal spectrum f(α) vs α.
+
+    The width Δα = α_max − α_min of the parabolic arc measures the degree
+    of multifractality.  A single point (monofractal) would appear as
+    Δα ≈ 0.
+
+    Parameters
+    ----------
+    alpha_mf : np.ndarray
+        Singularity strength α = dτ/dq.
+    f_alpha : np.ndarray
+        Multifractal spectrum f(α) = q·α − τ(q).
+    case_name : str
+        Case label.
+    savepath : str, optional
+        File path to save the figure.
+    """
     fig, ax = plt.subplots(figsize=(6, 5))
     valid = np.isfinite(alpha_mf) & np.isfinite(f_alpha)
     ax.plot(alpha_mf[valid], f_alpha[valid], 'o-', markersize=4)

@@ -1,4 +1,9 @@
+# Core dependencies
 numpy>=1.24
 scipy>=1.10
 matplotlib>=3.7
 pyyaml>=6.0
+
+# Optional — uncomment to enable JIT acceleration and real market data download
+# numba>=0.57
+# yfinance>=0.2

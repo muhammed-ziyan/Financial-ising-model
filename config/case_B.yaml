@@ -1,16 +1,8 @@
 case_name: "B"
+# Paper Table I parameters (Guimaraes & Lima 2021, PRE 103, 062130).
+# All other parameters are inherited from config/default.yaml.
 lattice:
   m: 5
 model:
   lambda_: 0.20
   b_max: 0.09
-  c_max: 0.3
-  delta: 1
-  beta: 1.0
-  eta: 3.0
-  noise_scale: 0.3
-simulation:
-  burn_in: 2000
-  production: 5700
-  seed: 42
-  sweeps_per_step: 1
