@@ -61,8 +61,8 @@ def save_results(filepath: str, **arrays) -> None:
     Parameters
     ----------
     filepath : str
-        Destination path (the ``.npz`` extension is added by NumPy if
-        omitted).
+        Destination path.  NumPy appends ``.npz`` automatically if the
+        path does not already end with that suffix.
     **arrays
         Keyword arguments become the named arrays in the archive, e.g.
         ``save_results("out.npz", returns=r, price=p)``.

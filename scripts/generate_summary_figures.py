@@ -44,7 +44,7 @@ from src.analysis_multifractal import mfdfa
 OUTDIR = "figures/summary"
 os.makedirs(OUTDIR, exist_ok=True)
 
-# ── load data ──────────────────────────────────────────────────────────────────
+# ── load per-case simulation artefacts ─────────────────────────────────────────
 
 def _load_metrics(case):
     with open(f"data/outputs/{case}/metrics.json") as f:
@@ -52,8 +52,30 @@ def _load_metrics(case):
 
 metrics = {c: _load_metrics(c) for c in ("A", "B", "C")}
 
-with open("data/outputs/mf_hq_summary.json") as f:
-    mf_hq = json.load(f)
+# ── compute MF-DFA h(q=1..4) on-the-fly from timeseries.npz ───────────────────
+# (avoids requiring a separately-generated mf_hq_summary.json artefact)
+
+_MF_Q_VALS = np.concatenate([np.arange(-5, 0, 0.5), np.arange(0.5, 5.5, 0.5)])
+
+def _compute_mf_hq(case: str) -> dict:
+    """Return h(q=1,2,3,4) and Δh for *case* from its timeseries.npz."""
+    d = np.load(f"data/outputs/{case}/timeseries.npz")
+    g = normalize_returns(d["returns"], method="paper")
+    result = mfdfa(g, _MF_Q_VALS, order=1)
+    hq_all = result["hq"]
+    q_all  = result["q_values"]
+    out = {}
+    for qi in (1, 2, 3, 4):
+        idx = np.argmin(np.abs(q_all - qi))
+        out[f"h_q{qi}"] = float(hq_all[idx]) if np.isfinite(hq_all[idx]) else float("nan")
+    valid = hq_all[np.isfinite(hq_all)]
+    out["delta_h"] = float(valid.max() - valid.min()) if len(valid) >= 2 else float("nan")
+    return out
+
+print("Computing MF-DFA h(q) for each case (this takes a moment)…")
+mf_hq = {c: _compute_mf_hq(c) for c in ("A", "B", "C")}
+
+# ── load real-market metrics ───────────────────────────────────────────────────
 
 with open("data/outputs/real_data_metrics.json") as f:
     real = json.load(f)
@@ -61,6 +83,27 @@ with open("data/outputs/real_data_metrics.json") as f:
 real_tickers = real["tickers"]
 paper_avg    = real["paper_avg"]
 model_avg    = real["model_avg"]
+
+# ── colour and label maps with safe fallback for custom tickers ────────────────
+
+TICKER_COLORS = {
+    "^GSPC": "#E53935", "^GDAXI": "#8E24AA",
+    "^N225": "#00897B", "^NSEI": "#FB8C00", "^BSESN": "#6D4C41",
+}
+TICKER_LABELS = {
+    "^GSPC": "S&P 500", "^GDAXI": "DAX",
+    "^N225": "NIKKEI", "^NSEI": "NIFTY", "^BSESN": "SENSEX",
+}
+_FALLBACK_COLORS = [
+    "#1565C0", "#2E7D32", "#6A1B9A", "#AD1457", "#00695C",
+    "#E65100", "#37474F", "#558B2F", "#283593", "#880E4F",
+]
+
+def _ticker_color(ticker: str, idx: int) -> str:
+    return TICKER_COLORS.get(ticker, _FALLBACK_COLORS[idx % len(_FALLBACK_COLORS)])
+
+def _ticker_label(ticker: str) -> str:
+    return TICKER_LABELS.get(ticker, ticker)
 
 PAPER_CASE = {
     "A": {"H_rs": 0.5533, "DFA1": 0.5409, "DFA2": 0.5535, "DFA3": 0.5493,
@@ -77,14 +120,6 @@ PAPER_CASE = {
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 COLORS = {"A": "#2196F3", "B": "#4CAF50", "C": "#FF9800"}
-TICKER_COLORS = {
-    "^GSPC": "#E53935", "^GDAXI": "#8E24AA",
-    "^N225": "#00897B", "^NSEI": "#FB8C00", "^BSESN": "#6D4C41",
-}
-TICKER_LABELS = {
-    "^GSPC": "S&P 500", "^GDAXI": "DAX",
-    "^N225": "NIKKEI", "^NSEI": "NIFTY", "^BSESN": "SENSEX",
-}
 
 def savefig(fig, name):
     path = os.path.join(OUTDIR, name)
@@ -279,10 +314,10 @@ def fig_real_vs_model_scatter():
 
     for xkey, ykey, ax in pairs:
         # Real market points
-        for ticker, tdata in real_tickers.items():
+        for idx, (ticker, tdata) in enumerate(real_tickers.items()):
             ax.scatter(tdata[xkey], tdata[ykey],
-                       color=TICKER_COLORS[ticker], s=80, zorder=4,
-                       label=TICKER_LABELS[ticker])
+                       color=_ticker_color(ticker, idx), s=80, zorder=4,
+                       label=_ticker_label(ticker))
 
         # Model cases
         for case in ("A", "B", "C"):

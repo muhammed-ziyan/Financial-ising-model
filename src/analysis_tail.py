@@ -58,6 +58,27 @@ def hill_estimator(data: np.ndarray, k: int) -> float:
 
 
 def hill_plot(data: np.ndarray, k_range: np.ndarray = None):
+    """Compute Hill estimates over a range of k values for a diagnostic plot.
+
+    Sweeping *k* reveals the bias-variance trade-off: small *k* gives
+    high-variance estimates while large *k* introduces heavy-tail bias.
+    A stable plateau in the plot indicates the optimal *k*.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Positive tail values (already sorted or unsorted).
+    k_range : np.ndarray, optional
+        Values of *k* (number of order statistics) to evaluate.
+        Defaults to ``np.arange(5, len(data) // 5)``.
+
+    Returns
+    -------
+    k_range : np.ndarray
+        The *k* values used.
+    alphas : np.ndarray
+        Hill estimate for each *k*.
+    """
     if k_range is None:
         k_max = max(10, len(data) // 5)
         k_range = np.arange(5, k_max)
@@ -66,8 +87,31 @@ def hill_plot(data: np.ndarray, k_range: np.ndarray = None):
 
 
 def hill_adaptive(data: np.ndarray):
-    """Hill estimator with plateau detection in the genuine tail (1%-10%)."""
+    """Hill estimator with plateau detection in the genuine tail (1%–10%).
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Positive values from one tail of the return distribution.
+
+    Returns
+    -------
+    alpha : float
+        Tail index estimate (median over the detected plateau region).
+    k_opt : int
+        Optimal number of order statistics used.
+
+    Raises
+    ------
+    ValueError
+        If ``data`` has fewer than 30 elements (insufficient for a
+        stable plateau search).
+    """
     n = len(data)
+    if n < 30:
+        raise ValueError(
+            f"hill_adaptive requires at least 30 tail observations; got {n}."
+        )
     k_min = max(10, int(n * 0.01))
     k_max = max(k_min + 20, int(n * 0.10))
     k_range = np.arange(k_min, k_max)

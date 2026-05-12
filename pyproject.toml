@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "finising"
+version = "0.1.0"
+description = "Self-organizing 3D Ising model of financial markets (Guimaraes & Lima 2021 reproduction)"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# JIT-compiled Monte Carlo sweep (~100x speed-up)
+numba = ["numba>=0.57"]
+# Real market data download
+data = ["yfinance>=0.2"]
+# Everything for development / reproducibility
+full = ["numba>=0.57", "yfinance>=0.2"]
+dev  = ["numba>=0.57", "yfinance>=0.2", "pytest>=7", "ruff"]
+
+[project.scripts]
+run-simulation = "run_simulation:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# ── pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts   = "-v"
+
+# ── ruff linter ───────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]   # long lines — handled by black if desired

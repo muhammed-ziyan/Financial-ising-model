@@ -4,12 +4,28 @@ Usage
 -----
     python run_simulation.py config/case_A.yaml --analyze --plot
     python run_simulation.py config/case_A.yaml --analyze --seeds 5
+    python run_simulation.py config/my_case.yaml --analyze --plot \\
+        --set model.lambda_=0.30 --set simulation.production=12000
 
 Options
 -------
-``--seeds N``   Run ``N`` independent realisations and ensemble-average
-                the reported statistics.  ``N`` overrides the
-                ``simulation.n_seeds`` entry of the YAML config.
+``--seeds N``
+    Run ``N`` independent realisations and ensemble-average the reported
+    statistics.  ``N`` overrides the ``simulation.n_seeds`` entry of the
+    YAML config.
+
+``--set section.key=value``
+    Override any YAML parameter on the command line without editing a
+    config file.  The section prefix must match the YAML structure:
+    ``lattice.*``, ``model.*``, or ``simulation.*``.  Values are parsed
+    as float if possible, otherwise as int, otherwise as string.
+
+    Examples::
+
+        --set model.lambda_=0.30
+        --set model.eta=2.5
+        --set simulation.production=15000
+        --set model.beta=1.2
 """
 
 import argparse
@@ -46,9 +62,16 @@ def _analyze_single(returns: np.ndarray, q_values: np.ndarray, max_lag: int,
     pos_fit = fit_tail_best(pos_tail) if len(pos_tail) > 50 else None
     neg_fit = fit_tail_best(neg_tail) if len(neg_tail) > 50 else None
 
-    # Hill estimator (secondary).
-    hill_pos, k_pos = hill_adaptive(pos_tail)
-    hill_neg, k_neg = hill_adaptive(neg_tail)
+    # Hill estimator (secondary) — requires at least 20 tail points.
+    _hill_min = 20
+    if len(pos_tail) > _hill_min:
+        hill_pos, k_pos = hill_adaptive(pos_tail)
+    else:
+        hill_pos, k_pos = float("nan"), 0
+    if len(neg_tail) > _hill_min:
+        hill_neg, k_neg = hill_adaptive(neg_tail)
+    else:
+        hill_neg, k_neg = float("nan"), 0
 
     # ACF.
     acf_r = acf(g, max_lag)
@@ -108,26 +131,100 @@ def _aggregate(results: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# CLI helpers
+# ---------------------------------------------------------------------------
+
+def _parse_set_value(raw: str):
+    """Coerce a ``--set`` value string to int, float, or str (in that order).
+
+    Integer strings like ``"100"`` are returned as ``int``; decimal strings
+    like ``"0.30"`` are returned as ``float``; anything else is left as
+    ``str``.
+    """
+    try:
+        return int(raw)
+    except ValueError:
+        pass
+    try:
+        return float(raw)
+    except ValueError:
+        pass
+    return raw
+
+
+def _build_overrides(set_args: list[str]) -> dict:
+    """Convert ``["model.lambda_=0.30", "simulation.production=5000"]``
+    into a nested dict suitable for :func:`load_config` overrides.
+
+    Supported prefixes: ``lattice``, ``model``, ``simulation``.
+
+    Raises
+    ------
+    SystemExit
+        For malformed ``key=value`` pairs or unrecognised section prefixes.
+    """
+    allowed_sections = {"lattice", "model", "simulation"}
+    overrides: dict = {}
+    for item in set_args:
+        if "=" not in item:
+            print(f"ERROR: --set argument must be in 'section.key=value' form; got: {item!r}")
+            raise SystemExit(1)
+        key_path, _, raw_val = item.partition("=")
+        parts = key_path.strip().split(".", 1)
+        if len(parts) != 2:
+            print(
+                f"ERROR: --set key must be 'section.key' (e.g. model.lambda_=0.3); "
+                f"got: {key_path!r}"
+            )
+            raise SystemExit(1)
+        section, key = parts
+        if section not in allowed_sections:
+            print(
+                f"ERROR: unknown section {section!r} in --set {item!r}. "
+                f"Allowed: {', '.join(sorted(allowed_sections))}"
+            )
+            raise SystemExit(1)
+        overrides.setdefault(section, {})[key] = _parse_set_value(raw_val)
+    return overrides
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="3D Ising financial-market model")
-    parser.add_argument("config", help="Path to case YAML file")
+    parser = argparse.ArgumentParser(
+        description="3D Ising financial-market model",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("config", help="Path to a case YAML file")
     parser.add_argument("--analyze", action="store_true",
                         help="Run statistical analysis after simulation")
     parser.add_argument("--plot", action="store_true",
                         help="Generate figures (first realisation only)")
     parser.add_argument("--seeds", type=int, default=None,
                         help="Ensemble size; overrides simulation.n_seeds")
+    parser.add_argument(
+        "--set", metavar="section.key=value", action="append", default=[],
+        dest="set_args",
+        help=(
+            "Override any YAML parameter inline, e.g. "
+            "--set model.lambda_=0.30 --set simulation.production=12000"
+        ),
+    )
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
+    cli_overrides = _build_overrides(args.set_args)
+    cfg = load_config(args.config, overrides=cli_overrides if cli_overrides else None)
     n_seeds = args.seeds if args.seeds is not None else cfg.n_seeds
+
     print(f"=== Case {cfg.case_name}: m={cfg.m}, N={cfg.m ** 3}, "
           f"lambda={cfg.lambda_}, b_max={cfg.b_max}, "
-          f"eta={cfg.eta}, c_max={cfg.c_max}, "
-          f"noise={cfg.noise_scale}, beta={cfg.beta} ===")
+          f"eta={cfg.eta:.4f}, c_max={cfg.c_max:.4f}, "
+          f"noise={cfg.noise_scale:.4f}, beta={cfg.beta:.4f} ===")
+    if cli_overrides:
+        flat = [f"{s}.{k}={v}" for s, kv in cli_overrides.items() for k, v in kv.items()]
+        print(f"    CLI overrides applied: {', '.join(flat)}")
     if n_seeds > 1:
         print(f"    Ensemble averaging over {n_seeds} seed(s)")
 

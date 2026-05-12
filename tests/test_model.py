@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from src.config_loader import SimConfig
-from src.model import IsingMarketModel
+from src.model import IsingMarketModel, run_ensemble
 
 
 def make_config(**overrides):
@@ -68,3 +68,47 @@ def test_output_lengths():
     results = IsingMarketModel(cfg).run()
     for key in ['magnetization', 'returns', 'news', 'price']:
         assert len(results[key]) == 500, f"{key} has wrong length"
+
+
+def test_run_ensemble_count():
+    """run_ensemble should return exactly n_seeds result dicts."""
+    cfg = make_config(production=100, burn_in=50)
+    runs = run_ensemble(cfg, n_seeds=3, base_seed=0)
+    assert len(runs) == 3
+    for r in runs:
+        assert "returns" in r
+        assert len(r["returns"]) == 100
+
+
+def test_run_ensemble_seeds_differ():
+    """Different seeds in an ensemble should produce different returns."""
+    cfg = make_config(production=200, burn_in=50)
+    runs = run_ensemble(cfg, n_seeds=2, base_seed=10)
+    assert not np.array_equal(runs[0]["returns"], runs[1]["returns"]), (
+        "Two different seeds produced identical returns"
+    )
+
+
+def test_explicit_seed_override():
+    """Passing an explicit seed to IsingMarketModel should override cfg.seed."""
+    cfg = make_config(seed=42)
+    r1 = IsingMarketModel(cfg, seed=100).run()["returns"]
+    r2 = IsingMarketModel(cfg, seed=100).run()["returns"]
+    r3 = IsingMarketModel(cfg, seed=200).run()["returns"]
+    np.testing.assert_array_equal(r1, r2)
+    assert not np.array_equal(r1, r3)
+
+
+def test_magnetization_bounded():
+    """Magnetization must always lie in [-1, 1]."""
+    cfg = make_config(production=500)
+    results = IsingMarketModel(cfg).run()
+    assert np.all(results['magnetization'] >= -1.0)
+    assert np.all(results['magnetization'] <= 1.0)
+
+
+def test_sweeps_per_step():
+    """sweeps_per_step > 1 should run without error."""
+    cfg = make_config(sweeps_per_step=3, production=100, burn_in=20)
+    results = IsingMarketModel(cfg).run()
+    assert len(results['returns']) == 100

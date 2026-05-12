@@ -23,7 +23,12 @@ import sys
 from datetime import date
 
 import numpy as np
-import yfinance as yf
+
+try:
+    import yfinance as yf
+    _HAS_YFINANCE = True
+except ImportError:
+    _HAS_YFINANCE = False
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -73,7 +78,16 @@ METRICS = ["H_rs", "DFA1", "DFA2", "DFA3", "beta_pos", "beta_neg"]
 # ---------------------------------------------------------------------------
 
 def fetch_log_returns(ticker: str, start: str, end: str) -> np.ndarray | None:
-    """Download adjusted closes and compute daily log-returns."""
+    """Download adjusted closes and compute daily log-returns.
+
+    Requires the optional ``yfinance`` package.  Returns *None* if the
+    download fails or yields insufficient data.
+    """
+    if not _HAS_YFINANCE:
+        raise ImportError(
+            "yfinance is required for real-data download.\n"
+            "Install it with:  pip install yfinance"
+        )
     try:
         df = yf.download(ticker, start=start, end=end,
                          auto_adjust=True, progress=False)
@@ -170,6 +184,14 @@ def _parse():
 # ---------------------------------------------------------------------------
 
 def main():
+    if not _HAS_YFINANCE:
+        print(
+            "ERROR: yfinance is not installed.\n"
+            "Install it with:  pip install yfinance\n"
+            "Then re-run this script."
+        )
+        raise SystemExit(1)
+
     args = _parse()
 
     print(f"\n{'='*72}")
